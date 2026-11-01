@@ -88,7 +88,7 @@ for (const subj of subjects) {
     const list = byConcept[c];
     if (!list[0].isTemplate && list.length < 3) console.log("  ✗", c, "變式少於 3 題"), errors++;
     for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
-      const a = list[i].stem, b = list[j].stem;
+      const a = list[i].stem && list[i].stem + (list[i].options || []).join(""), b = list[j].stem && list[j].stem + (list[j].options || []).join("");
       if (a && b && similarity(a, b) > 0.85) console.log("  ⚠", list[i].id, list[j].id, "題幹太像（" + similarity(a, b).toFixed(2) + "）");
     }
   }

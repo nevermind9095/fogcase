@@ -20,8 +20,8 @@ window.FC_UNITS = {
     { unit: "L2", label: "自然 L2", name: "多變的天氣", comic: "颱風前夜的天氣圖" }
   ],
   social: [
-    { unit: "L1", label: "社會 L1", name: "消費與理財", comic: "夜市的可疑攤位" },
-    { unit: "L2", label: "社會 L2", name: "臺灣的產業發展與社會變遷", comic: "被打亂的時光相簿" }
+    { unit: "L1", label: "社會 L1", name: "消費選擇與理財規劃", comic: "夜市的可疑攤位" },
+    { unit: "L2", label: "社會 L2", name: "戰後經濟轉型與生活轉變", comic: "被打亂的時光相簿" }
   ],
   english: [
     { unit: "T1", label: "英文 Topic 1", name: "Where Are You From? / What Do You Like to Do?", comic: "來自世界的筆友信" },
