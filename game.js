@@ -72,6 +72,40 @@
     } catch (e) { }
   }
 
+  // ================= 全螢幕與視窗尺寸 =================
+  // iPad 旋轉後，用實際的視窗大小重新設定版面（避免橫放時沿用直放的尺寸而被裁切）
+  function syncViewport() {
+    var de = document.documentElement;
+    de.style.setProperty("--vw", window.innerWidth + "px");
+    de.style.setProperty("--vh", window.innerHeight + "px");
+  }
+  syncViewport();
+  window.addEventListener("resize", syncViewport);
+  window.addEventListener("orientationchange", function () { syncViewport(); setTimeout(syncViewport, 300); setTimeout(syncViewport, 800); });
+  function isStandalone() { return window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches); }
+  function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement; }
+  function fsSupported() { return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled); }
+  function fsButton() { return isStandalone() ? "" : '<button class="btn ghost small" data-k="fs">' + (fsElement() ? "🗗 離開全螢幕" : "⛶ 全螢幕") + "</button>"; }
+  function toggleFullscreen() {
+    var de = document.documentElement;
+    try {
+      if (fsElement()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+      if (fsSupported()) { var r = (de.requestFullscreen || de.webkitRequestFullscreen).call(de); if (r && r.catch) r.catch(fsHelp); return; }
+    } catch (e) { }
+    fsHelp();
+  }
+  function fsHelp() {
+    var s = openSheet("<h2>⛶ 怎麼全螢幕玩？</h2><p>這個瀏覽器不讓網頁切換成全螢幕。最穩定的方法是把遊戲<b>加到 iPad 主畫面</b>：</p>" +
+      "<ol><li>用 <b>Safari</b> 打開這個遊戲網址。</li><li>按網址列旁的「分享」按鈕 <b>⬆︎</b>。</li><li>選「<b>加入主畫面</b>」。</li><li>之後從主畫面的圖示打開，就會是全螢幕，沒有網址列。</li></ol>" +
+      '<p class="sub" style="color:#6c5a44">進度一樣只存在這台 iPad；從主畫面圖示開啟時，進度和 Safari 裡的是分開的。</p><div class="actions"><button class="btn primary" data-k="ok">知道了</button></div>');
+    on(s, "[data-k=ok]", closeSheet);
+  }
+  // 所有畫面的全螢幕按鈕都由這裡處理
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-k=fs]");
+    if (b) { toggleFullscreen(); setTimeout(function () { document.querySelectorAll("[data-k=fs]").forEach(function (x) { x.textContent = fsElement() ? "🗗 離開全螢幕" : "⛶ 全螢幕"; }); }, 400); }
+  });
+
   // ================= 所長剪影 =================
   var BOSS_SVG = '<svg viewBox="0 0 120 140" aria-label="所長剪影"><g fill="#0b0b10">' +
     '<path d="M8 140 C12 110 32 99 60 99 C88 99 108 110 112 140 Z"/>' +
@@ -280,10 +314,11 @@
         if (seen[types[i]] && types[i] !== "battle") continue;
         seen[types[i]] = 1; row.push({ type: types[i] });
       }
+      // 中間每一排至少要有一場戰鬥，維持答題量
+      if (r >= 1 && r <= ROWS - 3 && !row.some(function (n) { return n.type === "battle" || n.type === "elite"; })) row[0] = { type: "battle" };
       rows.push(row);
     }
     rows.push([{ type: "boss" }]);
-    // 第 3～5 排至少要有一個強敵或戰鬥，維持答題量
     return rows;
   }
 
@@ -326,8 +361,9 @@
     closeSheet();
     var nextRow = run.row + 1;
     run.battle = null; run.at = null; saveRun();
-    var html = '<div class="topbar"><button class="btn ghost small" data-k="pause">⏸ 暫停</button><div class="spacer"></div></div>' + statbarHtml() +
-      '<h2 style="margin-top:12px">🗺️ 調查路線</h2><p class="sub">選一個亮起來的地點前進。最上面是幕後黑手。</p><div class="map">';
+    var html = '<div class="split maplay"><div class="b-side"><div class="topbar"><button class="btn ghost small" data-k="pause">⏸ 暫停</button><div class="spacer"></div>' + fsButton() + "</div>" + statbarHtml() +
+      '<h2 style="margin-top:12px">🗺️ 調查路線</h2><p class="sub">選一個亮起來的地點前進。最上面是幕後黑手。</p>' + itemBarHtml(false) +
+      '<p class="legend">🌫️調查戰 3 題｜👁️強敵戰 5 題（贏了選遺物）｜❓證人事件｜🏪補給站｜☕休息點｜🗃️寶箱｜💀Boss</p></div><div class="b-main"><div class="map">';
     run.map.forEach(function (row, r) {
       html += '<div class="map-row"><span class="rn">' + (r + 1) + "</span>";
       row.forEach(function (n, c) {
@@ -339,8 +375,7 @@
       });
       html += "</div>";
     });
-    html += '</div><p class="legend">🌫️調查戰 3 題｜👁️強敵戰 5 題（贏了選遺物）｜❓證人事件｜🏪補給站｜☕休息點｜🗃️寶箱｜💀Boss</p>';
-    html += itemBarHtml(false);
+    html += "</div></div></div>";
     show(html);
     drawStrings();
     bindRelicInfo(app); bindItems(app, null);
@@ -609,10 +644,10 @@
     }
 
     function draw() {
-      var html = (isEvent ? "" : '<div class="topbar"><button class="btn ghost small" data-k="pause">⏸ 暫停</button><div class="spacer"></div></div>') + statbarHtml() +
+      var html = '<div class="split"><div class="b-side">' + (isEvent ? "" : '<div class="topbar"><button class="btn ghost small" data-k="pause">⏸ 暫停</button><div class="spacer"></div>' + fsButton() + "</div>") + statbarHtml() +
         '<div class="arena"><div class="hero" id="hero"><img class="polaroid" src="' + img(save.seat) + '" alt=""><div class="sub">' + esc(charOf(save.seat).name) + "</div>" +
         (B.block > 0 ? '<div class="pill">🛡️ ' + B.block + "</div>" : "") + (run.combo >= 2 ? '<div class="pill">🔥 連擊 ' + run.combo + "</div>" : "") + "</div>" + foeHtml() + "</div>" +
-        (B.cur ? questionHtml() : "") + itemBarHtml(true);
+        itemBarHtml(true) + '</div><div class="b-main">' + (B.cur ? questionHtml() : "") + "</div></div>";
       show(html);
       bindRelicInfo(app); bindItems(app, self);
       on(app, "[data-k=pause]", pauseMenu);
@@ -1026,12 +1061,13 @@
   }
 
   function duel(seatL, seatR, subject) {
+    window.scrollTo(0, 0); syncViewport(); document.documentElement.classList.add("in-duel");
     var S = [{ seat: seatL, hp: DUEL_HP }, { seat: seatR, hp: DUEL_HP }];
     var used = {}, round = 0, starter = rnd(2), turn = 0, L = null, roundLv = 1, last = null, answered = false, sudden = false, roundOk = [null, null];
     var rotate = document.getElementById("rotate-hint");
-    function checkOrient() { rotate.classList.toggle("hidden", window.innerWidth >= window.innerHeight); }
+    function checkOrient() { syncViewport(); rotate.classList.toggle("hidden", window.innerWidth >= window.innerHeight); }
     window.addEventListener("resize", checkOrient);
-    function cleanup() { window.removeEventListener("resize", checkOrient); rotate.classList.add("hidden"); }
+    function cleanup() { window.removeEventListener("resize", checkOrient); rotate.classList.add("hidden"); document.documentElement.classList.remove("in-duel"); }
     function who() { return turn === 0 ? starter : 1 - starter; }
     function nm(i) { return charOf(S[i].seat).name; }
     function hearts(i) { if (sudden) return "⚡ 驟死戰"; var s = ""; for (var k = 0; k < DUEL_HP; k++) s += k < S[i].hp ? "❤️" : "🤍"; return s; }
@@ -1051,7 +1087,7 @@
       var q = chooseQuestion({ subject: subject, used: used, types: ["choice"], lastConcept: last, p2: roundLv === 2 ? 1 : 0 });
       L = instantiate(q); used[q.id] = (used[q.id] || 0) + 1; last = q.concept; answered = false;
       var w = who();
-      app.innerHTML = '<div class="duel">' + side(0) + '<div class="dcenter"><div class="row"><button class="btn ghost small" data-k="quit">✕ 結束</button><div class="spacer"></div><span class="pill">' + SUBJ[subject].icon + " " + SUBJ[subject].name + "</span></div>" +
+      app.innerHTML = '<div class="duel">' + side(0) + '<div class="dcenter"><div class="row"><button class="btn ghost small" data-k="quit">✕ 結束</button>' + fsButton() + '<div class="spacer"></div><span class="pill">' + SUBJ[subject].icon + " " + SUBJ[subject].name + "</span></div>" +
         '<div class="roundbar">' + (sudden ? "⚡ 驟死戰 · " : "") + "第 " + round + " 回合 · 輪到 " + (w === 0 ? "⬅️ " : "") + esc(nm(w)) + (w === 1 ? " ➡️" : "") + "</div>" +
         '<div class="qcard"><div class="qhead"><span>' + esc(unitInfo(q.subject, q.unit).label) + "</span>" + (L.level === 2 ? '<span class="lv2">進階</span>' : "") + '</div><div class="stem">' + rich(L.stem) + '</div><div id="dexp"></div></div></div>' + side(1) + "</div>";
       checkOrient();
@@ -1124,11 +1160,11 @@
   // ================= 主畫面（事務所） =================
   function hub() {
     closeSheet(); run = null;
-    document.getElementById("rotate-hint").classList.add("hidden");
+    document.getElementById("rotate-hint").classList.add("hidden"); document.documentElement.classList.remove("in-duel");
     if (!save.seat) { pickChar(); return; }
     var c = charOf(save.seat);
     var html = '<div class="topbar"><div class="brand"><span class="kicker">604 CASE FILES · TOP SECRET</span><h1>所長的機密檔案庫</h1></div><div class="spacer"></div>' +
-      '<button class="btn ghost small" data-k="sound">' + (save.sound ? "🔊 音效開" : "🔇 音效關") + '</button><a class="btn ghost small" href="help.html">❔ 說明</a></div>' +
+      fsButton() + '<button class="btn ghost small" data-k="sound">' + (save.sound ? "🔊 音效開" : "🔇 音效關") + '</button><a class="btn ghost small" href="help.html">❔ 說明</a></div>' +
       '<div class="folder" data-tab="調查員證"><div class="idcard"><div class="portrait ' + unlocked(FRAMES) + '"><img src="' + img(save.seat) + '" alt=""></div><div><div class="sub" style="color:#6c5a44">604 委託事務所｜' + save.seat + ' 號</div><h2 style="margin:2px 0">' + esc(c.name) + '</h2><span class="title">' + unlocked(TITLES) + '</span><div style="margin-top:8px">🏅 破案勳章 <b>' + save.medals + "</b> 枚　📁 未偵破懸案 <b>" + openCount(null) + '</b> 件</div><button class="btn small ghost" style="color:#333;border-color:#a98;margin-top:8px" data-k="char">換角色</button></div></div></div>';
     if (!save.introSeen) {
       html += '<div class="folder" data-tab="所長的委託">' + bossTalk("事務所的檔案庫裡，還飄著當年迷霧留下的<b>「殘霧」</b>。它們躲進每一份案件卷宗，把重點弄得模模糊糊。<br>潛入四個檔案區，把殘霧驅散吧！") +

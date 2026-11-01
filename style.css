@@ -410,19 +410,20 @@ h3 { font-size: 19px; }
 .wall-empty { grid-column: 1 / -1; color: var(--paper); text-align: center; padding: 34px 10px; }
 
 /* ---------- 雙人決鬥（回合制） ---------- */
-.duel { position: fixed; inset: 0; z-index: 2; display: grid; grid-template-columns: 1fr 1.25fr 1fr; gap: 12px; padding: max(10px, env(safe-area-inset-top)) 12px 12px; background: transparent; }
-.dside { position: relative; display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 10px; border-radius: 14px; background: rgba(0,0,0,.25); border: 2px solid transparent; transition: all .25s; }
+.duel { position: fixed; left: 0; top: 0; width: var(--vw, 100vw); height: var(--vh, 100vh); z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); overflow: hidden; }
+.dside { position: relative; display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; padding: 10px; border-radius: 14px; background: rgba(0,0,0,.25); border: 2px solid transparent; transition: all .25s; }
 .dside.active { border-color: var(--amber); background: rgba(255,198,92,.1); box-shadow: 0 0 30px rgba(255,198,92,.25); }
 .dside.waiting .opts { opacity: .3; filter: grayscale(.6); }
 .dside .wait-cover { display: none; }
 .dside.waiting .wait-cover { display: flex; position: absolute; left: 10px; right: 10px; top: 46%; justify-content: center; text-align: center; font-family: var(--serif); font-weight: 900; font-size: 20px; color: var(--paper); text-shadow: 0 2px 8px #000; pointer-events: none; }
 .dside .who { display: flex; align-items: center; gap: 10px; }
-.dside .who img { width: 70px; aspect-ratio: 512/440; object-fit: cover; background: #fbf6ea; padding: 4px 4px 10px; transform: rotate(-3deg); box-shadow: 0 4px 10px rgba(0,0,0,.5); }
+.dside .who img { width: 62px; aspect-ratio: 512/440; object-fit: cover; background: #fbf6ea; padding: 4px 4px 10px; transform: rotate(-3deg); box-shadow: 0 4px 10px rgba(0,0,0,.5); }
 .dside .who b { font-family: var(--serif); font-size: 18px; }
 .dside .hearts { font-size: 18px; letter-spacing: 1px; }
 .dside .turnflag { font-family: var(--serif); font-weight: 900; font-size: 16px; color: var(--amber); }
 .dside.waiting .turnflag { color: #9aa3b8; }
-.dside .opts { flex: 1; grid-auto-rows: 1fr; }
+.dside .opts { flex: 1; min-height: 0; grid-auto-rows: minmax(0, 1fr); }
+.dside .opt { overflow: hidden; }
 .dside .opt { font-size: 18px; min-height: 0; }
 .dcenter { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .dcenter .roundbar { text-align: center; font-family: var(--serif); font-weight: 900; font-size: 18px; color: var(--amber); letter-spacing: .05em; }
@@ -449,3 +450,26 @@ h3 { font-size: 19px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* ---------- 橫放：單人闖關改成左右兩欄 ---------- */
+.split { display: block; }
+@media (orientation: landscape) and (min-width: 900px) {
+  #app { max-width: 1280px; }
+  .split { display: grid; grid-template-columns: minmax(320px, 38%) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .split .b-main { position: sticky; top: 12px; }
+  .split .arena { margin-top: 12px; }
+  .split .qcard { margin-top: 4px; }
+  .split .opts.two { grid-template-columns: 1fr 1fr; }
+  .maplay { grid-template-columns: minmax(300px, 34%) minmax(0, 1fr); }
+  .maplay .map { margin-top: 0; gap: 10px; padding: 14px 10px; }
+  .maplay .node { height: 62px; }
+  .areas { grid-template-columns: repeat(4, 1fr); }
+  .hub-actions .btn { min-height: 70px; }
+}
+@media (orientation: landscape) and (max-height: 760px) {
+  .dside .who img { width: 52px; }
+  .dside .opt { font-size: 17px; padding: 6px 10px; }
+  .dcenter .stem { font-size: 20px; line-height: 1.6; }
+  .dcenter .exp { font-size: 16px; }
+}
+html.in-duel, html.in-duel body { overflow: hidden; height: 100%; }
