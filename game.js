@@ -14,6 +14,13 @@
   function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = rnd(i + 1); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
   function today() { var d = new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  // 題目文字：先跳脫，再把分數 a/b、帶分數 w又a/b 排成直式（分子在上、分母在下）
+  function fracHtml(n, d) { return '<span class="frac"><span class="fn">' + n + '</span><span class="fd">' + d + "</span></span>"; }
+  function rich(s) {
+    return esc(s)
+      .replace(/(\d+)又(\d+)\/(\d+)/g, function (_, w, n, d) { return '<span class="mixed">' + w + fracHtml(n, d) + "</span>"; })
+      .replace(/(\d+)\/(\d+)/g, function (_, n, d) { return fracHtml(n, d); });
+  }
   function h(html) { var d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
   function on(root, sel, fn) { root.querySelectorAll(sel).forEach(function (b) { b.addEventListener("click", fn); }); }
   function charOf(seat) { for (var i = 0; i < CHARS.length; i++) if (CHARS[i].seat === seat) return CHARS[i]; return CHARS[0]; }
@@ -23,7 +30,10 @@
     document.getElementById("toasts").appendChild(t);
     setTimeout(function () { t.remove(); }, 2600);
   }
-  function show(html) { app.innerHTML = html; window.scrollTo(0, 0); }
+  function show(html) {
+    app.innerHTML = html; window.scrollTo(0, 0);
+    app.classList.remove("enter"); void app.offsetWidth; app.classList.add("enter");
+  }
   function openSheet(html) { overlay.innerHTML = '<div class="sheet">' + html + "</div>"; overlay.classList.remove("hidden"); overlay.scrollTop = 0; return overlay.firstChild; }
   function closeSheet() { overlay.classList.add("hidden"); overlay.innerHTML = ""; }
 
@@ -138,7 +148,7 @@
   function hintFor(L) {
     var traps = (L.traps || []).filter(function (t) { return t; });
     var t = traps.length ? pick(traps) : "";
-    return "考點：" + esc(L.q.conceptName) + (t ? "<br>小心這個迷思：「" + esc(t) + "」" : "");
+    return "考點：" + esc(L.q.conceptName) + (t ? "<br>小心這個迷思：「" + rich(t) + "」" : "");
   }
 
   // ================= 懸案卷宗 =================
@@ -308,6 +318,7 @@
     html += '</div><p class="legend">🌫️調查戰 3 題｜👁️強敵戰 5 題（贏了選遺物）｜❓證人事件｜🏪補給站｜☕休息點｜🗃️寶箱｜💀Boss</p>';
     html += itemBarHtml(false);
     show(html);
+    drawStrings();
     bindRelicInfo(app); bindItems(app, null);
     on(app, "[data-k=quit]", function () {
       var s = openSheet('<h2>要放棄這一輪嗎？</h2><p>已經建檔的懸案會留在懸案卷宗裡。</p><div class="actions"><button class="btn ghost" style="color:#333" data-k="no">繼續調查</button><button class="btn red" data-k="yes">放棄</button></div>');
@@ -321,6 +332,19 @@
     });
   }
 
+  // 像偵探牆一樣，用紅線把目前位置連到下一排可去的地點
+  function drawStrings() {
+    var map = app.querySelector(".map"); if (!map) return;
+    var mr = map.getBoundingClientRect(), from = map.querySelector(".node.cur"), fx, fy;
+    if (from) { var fr = from.getBoundingClientRect(); fx = fr.left + fr.width / 2 - mr.left; fy = fr.top - mr.top + 4; }
+    else { fx = mr.width / 2; fy = mr.height + 6; }
+    var paths = "";
+    map.querySelectorAll(".node.avail").forEach(function (n) {
+      var r = n.getBoundingClientRect(), x = r.left + r.width / 2 - mr.left, y = r.bottom - mr.top - 4;
+      paths += '<path d="M' + fx + " " + fy + " Q" + (fx + x) / 2 + " " + ((fy + y) / 2 + 14) + " " + x + " " + y + '"/>';
+    });
+    map.appendChild(h('<svg class="strings" width="' + mr.width + '" height="' + (mr.height + 10) + '">' + paths + "</svg>"));
+  }
   function enterNode(type) {
     if (type === "battle") startBattle("normal");
     else if (type === "elite") startBattle("elite");
@@ -514,7 +538,7 @@
       }
       if (L.q.isTemplate) run.used[L.q.id] = (run.used[L.q.id] || 0) + 1; else run.used[L.q.id] = 1;
       run.lastConcept = L.q.concept;
-      B.cur = L; B.spell = []; B.num = "";
+      B.cur = L; B.spell = []; B.tiles = null; B.num = "";
       window.FC_cur = L;
       if (L.ghost && relicLv("notes")) B.hintShown = true;
       if (relicLv("notes") > 1) B.hintShown = true;
@@ -540,7 +564,7 @@
         var long = L.options.some(function (o) { return o.length > 14; });
         body = '<div class="opts' + (long ? "" : " two") + '">' + L.options.map(function (o, i) {
           var cls = "opt" + (B.removed.indexOf(i) >= 0 ? " gone" : "");
-          return '<button class="' + cls + '" data-o="' + i + '"><span class="k">' + "ABCD"[i] + "</span><span>" + esc(o) + "</span></button>";
+          return '<button class="' + cls + '" data-o="' + i + '"><span class="k">' + "ABCD"[i] + "</span><span>" + rich(o) + "</span></button>";
         }).join("") + "</div>";
       } else if (L.type === "number") {
         body = '<div class="numdisp">' + (esc(B.num) || "&nbsp;") + (L.unitText ? ' <small style="font-size:18px">' + esc(L.unitText) + "</small>" : "") + '</div><div class="numpad">' +
@@ -551,12 +575,12 @@
       }
       var tools = "";
       if (L.type === "choice" && B.lensLeft > 0 && !B.answered) tools += '<button class="btn small ghost" style="color:#333;border-color:#bba" data-k="lens">🔍 放大鏡：刪去一個錯誤選項（剩 ' + B.lensLeft + "）</button>";
-      return '<div class="qcard' + (L.ghost ? " ghost-q" : "") + '">' + head + hint + '<div class="stem">' + esc(L.stem) + "</div>" + body + (tools ? '<div class="qtools">' + tools + "</div>" : "") + "</div>";
+      return '<div class="qcard' + (L.ghost ? " ghost-q" : "") + '">' + head + hint + '<div class="stem">' + rich(L.stem) + "</div>" + body + (tools ? '<div class="qtools">' + tools + "</div>" : "") + "</div>";
     }
 
     function draw() {
       var html = '<div class="lamp-glow"></div>' + statbarHtml() +
-        '<div class="arena"><div class="hero" id="hero"><img src="' + img(save.seat) + '" alt=""><div class="sub">' + esc(charOf(save.seat).name) + "</div>" +
+        '<div class="arena"><div class="hero" id="hero"><img class="polaroid" src="' + img(save.seat) + '" alt=""><div class="sub">' + esc(charOf(save.seat).name) + "</div>" +
         (B.block > 0 ? '<div class="pill">🛡️ ' + B.block + "</div>" : "") + (run.combo >= 2 ? '<div class="pill">🔥 連擊 ' + run.combo + "</div>" : "") + "</div>" + foeHtml() + "</div>" +
         (B.cur ? questionHtml() : "") + itemBarHtml(true);
       show(html);
@@ -620,7 +644,7 @@
       }
       B.foe.hp -= dmg;
       var fe = document.getElementById("foe");
-      if (fe && dmg) { fe.classList.add("hit"); floatDmg(fe, "-" + dmg); }
+      if (fe && dmg) { fe.classList.add("hit"); floatDmg(fe, "-" + dmg); juice("hit"); }
       if (B.kind === "boss" && B.phase === 1 && B.foe.hp > 0 && B.foe.hp <= B.foe.max / 2) {
         B.phase = 2; B.shield = true; B.shieldStreak = 0;
         setTimeout(function () { toast("⚠️ 霧核進入第二階段：張開護盾！連續答對 2 題才能打破"); }, 400);
@@ -653,7 +677,7 @@
         if (B.shield) B.shieldStreak = 0;
         run.hp -= atk;
         var he = document.getElementById("hero");
-        if (he && atk) { he.classList.add("hit"); floatDmg(he, "-" + atk); }
+        if (he && atk) { he.classList.add("hit"); floatDmg(he, "-" + atk); juice("hurt"); }
       }
       setTimeout(function () {
         explainAndDiagnose(L, givenText, givenIdx, { coins: true }, function () {
@@ -664,7 +688,7 @@
     }
 
     function win() {
-      var fe = document.getElementById("foe"); if (fe) fe.classList.add("dead");
+      var fe = document.getElementById("foe"); if (fe) { burst(fe); fe.classList.add("dead"); }
       beep("win");
       setTimeout(function () {
         if (B.kind === "boss") { endRun(true); return; }
@@ -682,6 +706,23 @@
     nextQuestion();
   }
 
+  // 打擊感：畫面震動＋閃光（答對亮光、受傷紅光），打倒敵人時霧氣碎片四散
+  function juice(kind) {
+    var b = document.body; b.classList.remove("fx-hit", "fx-hurt"); void b.offsetWidth;
+    b.classList.add(kind === "hurt" ? "fx-hurt" : "fx-hit");
+    setTimeout(function () { b.classList.remove("fx-hit", "fx-hurt"); }, 450);
+  }
+  function burst(el) {
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    for (var i = 0; i < 18; i++) {
+      var p = document.createElement("i"), a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 110;
+      p.className = "spark"; p.style.left = (r.left + r.width / 2) + "px"; p.style.top = (r.top + r.height / 2) + "px";
+      p.style.setProperty("--dx", Math.cos(a) * d + "px"); p.style.setProperty("--dy", Math.sin(a) * d + "px");
+      document.body.appendChild(p);
+      setTimeout(function (n) { return function () { n.remove(); }; }(p), 900);
+    }
+  }
   function floatDmg(el, text) {
     var r = el.getBoundingClientRect();
     var d = h('<div class="dmg">' + text + "</div>");
@@ -755,9 +796,9 @@
   // 規格書 3.4：先看解析與出處，再回答「你剛剛錯在哪裡？」
   function explainAndDiagnose(L, givenText, givenIdx, opt, done) {
     var s = openSheet('<h2>🔎 這題的真相</h2>' +
-      '<div class="ans">✅ 正確答案：' + esc(L.answerText) + (L.unitText ? " " + esc(L.unitText) : "") + "</div>" +
-      '<div class="mine">❌ 你的答案：' + esc(givenText) + "</div>" +
-      '<div class="exp">' + esc(L.explain) + "</div>" +
+      '<div class="ans">✅ 正確答案：' + rich(L.answerText) + (L.unitText ? " " + esc(L.unitText) : "") + "</div>" +
+      '<div class="mine">❌ 你的答案：' + rich(givenText) + "</div>" +
+      '<div class="exp">' + rich(L.explain) + "</div>" +
       '<div class="srcline">' + sourceLine(L.q) + "</div>" +
       '<div class="actions"><button class="btn primary" data-k="next">看懂了，找出錯因 ➜</button></div>');
     on(s, "[data-k=next]", function () { diagnose(L, givenText, givenIdx, opt, done); });
@@ -767,8 +808,8 @@
     var D = diagnosisFor(L, givenText, givenIdx);
     if (D.options.length < 2) { closeSheet(); done(); return; }
     var title = D.graded ? "🧠 你剛剛錯在哪裡？" : "🧠 這題常見的迷思有這些，你覺得自己比較像哪一種？";
-    var s = openSheet("<h2>" + title + '</h2><p class="sub" style="color:#6c5a44">你選的是「' + esc(givenText) + "」</p>" +
-      D.options.map(function (t, i) { return '<button class="diag-opt" data-d="' + i + '">' + esc(t) + "</button>"; }).join("") +
+    var s = openSheet("<h2>" + title + '</h2><p class="sub" style="color:#6c5a44">你選的是「' + rich(givenText) + "」</p>" +
+      D.options.map(function (t, i) { return '<button class="diag-opt" data-d="' + i + '">' + rich(t) + "</button>"; }).join("") +
       '<div id="dres"></div><div class="actions hidden" id="dact"><button class="btn primary" data-k="ok">我懂了 ➜</button></div>');
     var answered = false;
     on(s, "[data-d]", function () {
@@ -786,7 +827,7 @@
           beep("ok");
         } else {
           this.classList.add("wrong");
-          res.innerHTML = '<p class="mine">差一點！你選「' + esc(givenText) + "」，最可能的迷思是：<b>" + esc(D.correct) + "</b></p>";
+          res.innerHTML = '<p class="mine">差一點！你選「' + rich(givenText) + "」，最可能的迷思是：<b>" + rich(D.correct) + "</b></p>";
         }
       } else {
         this.classList.add("right");
@@ -848,11 +889,11 @@
     var q = { subject: c.subject, unit: c.unit };
     var s = openSheet("<h2>📁 " + esc(c.conceptName) + "</h2>" +
       '<p class="sub" style="color:#6c5a44">' + esc(u.label) + "｜答錯 " + c.wrong + " 次｜" + (c.status === "closed" ? '<b style="color:#b3261e">已結案</b>' : "<b>未偵破</b>") + "</p>" +
-      '<div class="paper" style="box-shadow:none;border:1px solid #d6c7a8"><div class="stem" style="font-size:18px">' + esc(sn.stem) + "</div>" +
-      (sn.options ? "<ul>" + sn.options.map(function (o) { return "<li>" + esc(o) + "</li>"; }).join("") + "</ul>" : "") + "</div>" +
-      '<div class="ans">✅ 正確答案：' + esc(sn.answer) + "</div>" + (sn.given ? '<div class="mine">❌ 當時的答案：' + esc(sn.given) + "</div>" : "") +
-      '<div class="exp">' + esc(sn.explain) + "</div>" +
-      (sn.traps && sn.traps.length ? "<p><b>這個考點常見的迷思：</b></p><ul>" + sn.traps.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" : "") +
+      '<div class="paper" style="box-shadow:none;border:1px solid #d6c7a8"><div class="stem" style="font-size:18px">' + rich(sn.stem) + "</div>" +
+      (sn.options ? "<ul>" + sn.options.map(function (o) { return "<li>" + rich(o) + "</li>"; }).join("") + "</ul>" : "") + "</div>" +
+      '<div class="ans">✅ 正確答案：' + rich(sn.answer) + "</div>" + (sn.given ? '<div class="mine">❌ 當時的答案：' + rich(sn.given) + "</div>" : "") +
+      '<div class="exp">' + rich(sn.explain) + "</div>" +
+      (sn.traps && sn.traps.length ? "<p><b>這個考點常見的迷思：</b></p><ul>" + sn.traps.map(function (t) { return "<li>" + rich(t) + "</li>"; }).join("") + "</ul>" : "") +
       '<div class="srcline">' + sourceLine(q) + '</div><div class="actions"><button class="btn primary" data-k="ok">關閉</button></div>');
     on(s, "[data-k=ok]", closeSheet);
   }
@@ -877,12 +918,12 @@
     }
     function draw() {
       var L = B.cur, u = unitInfo(L.q.subject, L.q.unit), body = "";
-      if (L.type === "choice") body = '<div class="opts">' + L.options.map(function (o, i) { return '<button class="opt" data-o="' + i + '"><span class="k">' + "ABCD"[i] + "</span><span>" + esc(o) + "</span></button>"; }).join("") + "</div>";
+      if (L.type === "choice") body = '<div class="opts">' + L.options.map(function (o, i) { return '<button class="opt" data-o="' + i + '"><span class="k">' + "ABCD"[i] + "</span><span>" + rich(o) + "</span></button>"; }).join("") + "</div>";
       else if (L.type === "number") body = '<div class="numdisp">' + (esc(B.num) || "&nbsp;") + (L.unitText ? " <small>" + esc(L.unitText) + "</small>" : "") + '</div><div class="numpad">' + ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "⌫"].map(function (k) { return '<button data-n="' + k + '">' + k + "</button>"; }).join("") + '<button class="ok" data-n="ok">確定</button></div>';
       else body = spellHtml(L, B);
       show('<div class="lamp-glow"></div><div class="topbar"><button class="btn ghost small" data-k="back">← 懸案牆</button><div class="spacer"></div><span class="pill">第 ' + (R.i + 1) + " / " + R.list.length + ' 件</span><span class="pill">🏅 ' + save.medals + "</span></div>" +
         '<div class="folder" data-tab="懸案調查中"><p style="margin:0 0 8px"><b>📁 ' + esc(B.c.conceptName) + "</b>（" + esc(u.label) + "）— 這是同一個考點的<b>新題目</b>，答對就結案！</p>" +
-        '<div class="qcard"><div class="qhead"><span>' + esc(u.label) + "</span>" + (L.level === 2 ? '<span class="lv2">進階</span>' : "") + '</div><div class="stem">' + esc(L.stem) + "</div>" + body + "</div></div>");
+        '<div class="qcard"><div class="qhead"><span>' + esc(u.label) + "</span>" + (L.level === 2 ? '<span class="lv2">進階</span>' : "") + '</div><div class="stem">' + rich(L.stem) + "</div>" + body + "</div></div>");
       on(app, "[data-k=back]", caseRoom);
       on(app, "[data-o]", function () { judge(+this.getAttribute("data-o")); });
       on(app, "[data-n]", function () {
@@ -923,7 +964,8 @@
     next();
   }
 
-  // ================= 雙人決鬥 =================
+  // ================= 雙人決鬥（回合制） =================
+  // 每回合兩人各答一題（同難度、不同題目），回合結束才判定勝負，所以先手不佔便宜；每回合輪流先答。
   var DUEL_HP = 5;
   function duelSetup() {
     closeSheet();
@@ -936,7 +978,9 @@
     }
     function draw() {
       var ready = P[0].seat && P[1].seat && subject;
-      show('<div class="topbar"><button class="btn ghost small" data-k="hub">← 回事務所</button><div class="spacer"></div></div><h1>⚔️ 雙人決鬥</h1><p class="sub">兩人共用一台 iPad，請<b>橫放</b>，左右各坐一位。先答對的人攻擊對手，先把對手的血打光就贏了！</p>' +
+      show('<div class="topbar"><button class="btn ghost small" data-k="hub">← 回事務所</button><div class="spacer"></div></div>' +
+        '<div class="brand"><span class="kicker">DUEL · 回合制對決</span><h1>⚔️ 雙人決鬥</h1></div>' +
+        '<p class="sub">兩人共用一台 iPad，請<b>橫放</b>，左右各坐一位。<b>輪流作答</b>：答對就攻擊對手，答錯就攻擊撲空。每回合兩人各答一題，<b>回合結束才判定勝負</b>，所以先答的人不會比較佔便宜；每回合輪流先答。</p>' +
         '<div class="duel-pick"><div><h3>⬅️ 左邊玩家' + (P[0].seat ? "：" + esc(charOf(P[0].seat).name) : "") + "</h3>" + grid(0) + "</div><div><h3>右邊玩家 ➡️" + (P[1].seat ? "：" + esc(charOf(P[1].seat).name) : "") + "</h3>" + grid(1) + "</div></div>" +
         '<h3>選一個科目</h3><div class="tabs">' + SUBJ_KEYS.map(function (s) { var ok = BANK.qs.some(function (q) { return q.subject === s && q.type === "choice"; }); return '<button class="tab' + (subject === s ? " on" : "") + '" data-subj="' + s + '"' + (ok ? "" : " disabled") + ">" + SUBJ[s].icon + " " + SUBJ[s].name + (ok ? "" : "（整理中）") + "</button>"; }).join("") + "</div>" +
         '<div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn primary" data-k="go"' + (ready ? "" : " disabled") + ">開始決鬥 ➜</button></div>");
@@ -949,68 +993,76 @@
   }
 
   function duel(seatL, seatR, subject) {
-    var S = [{ seat: seatL, hp: DUEL_HP, lockUntil: 0 }, { seat: seatR, hp: DUEL_HP, lockUntil: 0 }];
-    var used = {}, last = null, L = null, state = "q", timer = null, nextTimer = null;
+    var S = [{ seat: seatL, hp: DUEL_HP }, { seat: seatR, hp: DUEL_HP }];
+    var used = {}, round = 0, starter = rnd(2), turn = 0, L = null, roundLv = 1, last = null, answered = false, sudden = false;
     var rotate = document.getElementById("rotate-hint");
-    function checkOrient() { if (state !== "end") rotate.classList.toggle("hidden", window.innerWidth >= window.innerHeight); }
+    function checkOrient() { rotate.classList.toggle("hidden", window.innerWidth >= window.innerHeight); }
     window.addEventListener("resize", checkOrient);
-    function cleanup() { window.removeEventListener("resize", checkOrient); rotate.classList.add("hidden"); clearTimeout(timer); clearTimeout(nextTimer); }
+    function cleanup() { window.removeEventListener("resize", checkOrient); rotate.classList.add("hidden"); }
+    function who() { return turn === 0 ? starter : 1 - starter; }
+    function nm(i) { return charOf(S[i].seat).name; }
+    function hearts(i) { var s = ""; for (var k = 0; k < (sudden ? 1 : DUEL_HP); k++) s += k < S[i].hp ? "❤️" : "🤍"; return s; }
 
     function side(i) {
-      var p = S[i], c = charOf(p.seat);
-      return '<div class="dside" id="ds' + i + '"><div class="who"><img src="' + img(p.seat) + '" alt=""><b>' + esc(c.name) + '</b></div><div class="hpbar"><i style="width:' + (p.hp / DUEL_HP * 100) + '%"></i><span>❤️ ' + p.hp + " / " + DUEL_HP + '</span></div><div class="lock" id="lk' + i + '"></div><div class="opts">' +
-        L.options.map(function (o, k) { return '<button class="opt" data-p="' + i + '" data-o="' + k + '"><span class="k">' + "ABCD"[k] + "</span><span>" + esc(o) + "</span></button>"; }).join("") + "</div></div>";
+      var act = i === who(), c = charOf(S[i].seat);
+      return '<div class="dside' + (act ? " active" : " waiting") + '" id="ds' + i + '"><div class="who"><img src="' + img(S[i].seat) + '" alt=""><div><b>' + esc(c.name) + '</b><div class="hearts">' + hearts(i) + "</div></div></div>" +
+        '<div class="turnflag">' + (act ? "👉 輪到你作答" : "⏳ 等對手作答") + '</div><div class="opts">' +
+        L.options.map(function (o, k) { return '<button class="opt" data-p="' + i + '" data-o="' + k + '"' + (act ? "" : " disabled") + '><span class="k">' + "ABCD"[k] + "</span><span>" + rich(o) + "</span></button>"; }).join("") +
+        '</div><div class="wait-cover">' + (act ? "" : "對手作答中<br>請先不要碰") + "</div></div>";
     }
-    function nextQ() {
-      clearTimeout(nextTimer);
-      var q = chooseQuestion({ subject: subject, used: used, types: ["choice"], lastConcept: last, p2: 0.35 });
-      L = instantiate(q); used[q.id] = (used[q.id] || 0) + 1; last = q.concept;
-      state = "q"; S[0].lockUntil = S[1].lockUntil = 0;
-      app.innerHTML = '<div class="duel">' + side(0) + '<div class="dcenter"><div class="row"><button class="btn ghost small" data-k="quit">✕ 結束</button><div class="spacer"></div><span class="pill">' + SUBJ[subject].icon + " " + SUBJ[subject].name + '</span></div><div class="qcard"><div class="qhead"><span>' + esc(unitInfo(q.subject, q.unit).label) + '</span></div><div class="stem">' + esc(L.stem) + '</div><div id="dexp"></div></div></div>' + side(1) + "</div>";
+    function newRound() {
+      round++; if (round > 1) starter = 1 - starter;
+      turn = 0; roundLv = Math.random() < 0.35 ? 2 : 1;
+      nextTurn();
+    }
+    function nextTurn() {
+      var q = chooseQuestion({ subject: subject, used: used, types: ["choice"], lastConcept: last, p2: roundLv === 2 ? 1 : 0 });
+      L = instantiate(q); used[q.id] = (used[q.id] || 0) + 1; last = q.concept; answered = false;
+      var w = who();
+      app.innerHTML = '<div class="duel">' + side(0) + '<div class="dcenter"><div class="row"><button class="btn ghost small" data-k="quit">✕ 結束</button><div class="spacer"></div><span class="pill">' + SUBJ[subject].icon + " " + SUBJ[subject].name + "</span></div>" +
+        '<div class="roundbar">' + (sudden ? "⚡ 延長賽 · " : "") + "第 " + round + " 回合 · " + (turn === 0 ? "先答" : "後答") + "：" + (w === 0 ? "⬅️ " : "") + esc(nm(w)) + (w === 1 ? " ➡️" : "") + "</div>" +
+        '<div class="qcard"><div class="qhead"><span>' + esc(unitInfo(q.subject, q.unit).label) + "</span>" + (L.level === 2 ? '<span class="lv2">進階</span>' : "") + '</div><div class="stem">' + rich(L.stem) + '</div><div id="dexp"></div></div></div>' + side(1) + "</div>";
       checkOrient();
-      app.querySelectorAll("[data-o]").forEach(function (b) {
-        b.addEventListener("pointerdown", function (e) { e.preventDefault(); tap(+b.getAttribute("data-p"), +b.getAttribute("data-o"), b); });
-      });
+      on(app, "[data-o]", function () { pickAns(+this.getAttribute("data-p"), +this.getAttribute("data-o"), this); });
       on(app, "[data-k=quit]", function () { cleanup(); hub(); });
     }
-    function tap(pi, k, btn) {
-      if (state !== "q") return;
-      var now = Date.now(), p = S[pi];
-      if (now < p.lockUntil || btn.disabled) return;
-      if (k === L.answerIdx) {
-        state = "reveal"; beep("ok");
-        var foe = S[1 - pi]; foe.hp--;
-        btn.classList.add("right");
-        var fs = document.getElementById("ds" + (1 - pi)); if (fs) fs.classList.add("hit");
-        reveal(charOf(p.seat).name + " 先答對！攻擊成功 ⚔️");
+    function pickAns(pi, k, btn) {
+      if (answered || pi !== who()) return;
+      answered = true;
+      var ok = k === L.answerIdx, foe = 1 - pi;
+      app.querySelectorAll("#ds" + pi + " [data-o]").forEach(function (b, j) { b.disabled = true; if (j === L.answerIdx) b.classList.add("right"); });
+      var msg;
+      if (ok) {
+        S[foe].hp--; beep("ok"); juice("hit");
+        var fs = document.getElementById("ds" + foe); if (fs) { fs.classList.add("hit"); fs.querySelector(".hearts").innerHTML = hearts(foe); }
+        msg = "⚔️ " + nm(pi) + " 答對了！攻擊成功";
       } else {
-        // 答錯：這個選項不能再按，整排鎖定 1.5 秒防止亂按
-        beep("bad"); btn.classList.add("wrong"); btn.disabled = true;
-        p.lockUntil = now + 1500;
-        var ds = document.getElementById("ds" + pi), lk = document.getElementById("lk" + pi);
-        ds.classList.add("locked"); lk.textContent = "答錯了！鎖定 1.5 秒";
-        setTimeout(function () { if (state === "q") { ds.classList.remove("locked"); lk.textContent = ""; } }, 1500);
+        btn.classList.add("wrong"); beep("bad");
+        msg = "💨 " + nm(pi) + " 答錯了……攻擊撲空";
       }
-    }
-    function reveal(msg) {
-      app.querySelectorAll(".dside").forEach(function (d) { d.classList.remove("locked"); });
-      app.querySelectorAll("[data-o]").forEach(function (b) { b.disabled = true; if (+b.getAttribute("data-o") === L.answerIdx) b.classList.add("right"); });
-      [0, 1].forEach(function (i) { var bar = app.querySelector("#ds" + i + " .hpbar"); if (bar) bar.innerHTML = '<i style="width:' + (S[i].hp / DUEL_HP * 100) + '%"></i><span>❤️ ' + S[i].hp + " / " + DUEL_HP + "</span>"; });
+      var nextLabel = turn === 0 ? "換 " + esc(nm(foe)) + " 作答 ➜" : "回合結算 ➜";
       var ex = document.getElementById("dexp");
-      ex.innerHTML = '<p class="ans">' + esc(msg) + "</p><p class=\"ans\">✅ " + esc(L.answerText) + '</p><p class="exp">' + esc(L.explain) + '</p><div class="srcline">' + sourceLine(L.q) + '</div><div class="row" style="justify-content:center;margin-top:8px"><button class="btn primary small" data-k="nx">下一題 ➜</button></div>';
-      var ended = S[0].hp <= 0 || S[1].hp <= 0;
-      on(ex, "[data-k=nx]", function () { ended ? finish() : nextQ(); });
-      nextTimer = setTimeout(function () { ended ? finish() : nextQ(); }, ended ? 2500 : 6000);
+      ex.innerHTML = '<p class="' + (ok ? "ans" : "mine") + '">' + esc(msg) + '</p><p class="ans">✅ 正確答案：' + rich(L.answerText) + '</p><p class="exp">' + rich(L.explain) + '</p><div class="srcline">' + sourceLine(L.q) + '</div><div class="row" style="justify-content:center;margin-top:10px"><button class="btn primary" data-k="nx">' + nextLabel + "</button></div>";
+      on(ex, "[data-k=nx]", function () { if (turn === 0) { turn = 1; nextTurn(); } else endRound(); });
     }
-    function finish() {
-      clearTimeout(nextTimer); state = "end"; cleanup();
-      var w = S[0].hp > 0 ? 0 : 1, c = charOf(S[w].seat);
-      beep("win");
-      show('<div class="folder center" data-tab="決鬥結果"><img src="' + img(S[w].seat) + '" style="width:180px;border-radius:14px;border:5px solid #e6b93c" alt=""><h1>🏆 ' + esc(c.name) + " 獲勝！</h1><p>" + (w === 0 ? "左邊" : "右邊") + '玩家先把對手的血打光了。兩位都辛苦了！</p><div class="row" style="justify-content:center"><button class="btn" data-k="again">再來一場</button><button class="btn primary" data-k="hub">回事務所</button></div></div>');
+    function endRound() {
+      var d0 = S[0].hp <= 0, d1 = S[1].hp <= 0;
+      if (d0 && d1) {
+        sudden = true; S[0].hp = S[1].hp = 1;
+        var s = openSheet('<h2 class="center">⚡ 同一回合雙方都倒下了！</h2><p class="center">進入<b>延長賽</b>：兩人各剩 1 顆心，繼續輪流作答。</p><div class="actions"><button class="btn primary" data-k="ok">開始延長賽 ➜</button></div>');
+        on(s, "[data-k=ok]", function () { closeSheet(); newRound(); });
+      } else if (d0 || d1) finish(d0 ? 1 : 0);
+      else newRound();
+    }
+    function finish(w) {
+      cleanup(); beep("win");
+      var c = charOf(S[w].seat);
+      show('<div class="folder center" data-tab="決鬥結果"><img class="polaroid big" src="' + img(S[w].seat) + '" alt=""><h1>🏆 ' + esc(c.name) + " 獲勝！</h1><p>" + (w === 0 ? "左邊" : "右邊") + "玩家在第 " + round + ' 回合把對手的心打光了。兩位都辛苦了！</p><div class="row" style="justify-content:center"><button class="btn" data-k="again">再來一場</button><button class="btn primary" data-k="hub">回事務所</button></div></div>');
       on(app, "[data-k=again]", function () { duel(seatL, seatR, subject); });
       on(app, "[data-k=hub]", hub);
     }
-    nextQ();
+    toast("🪙 擲硬幣：由" + (starter === 0 ? "左邊的 " : "右邊的 ") + esc(nm(starter)) + " 先答");
+    newRound();
   }
 
   // ================= 選角色 =================
@@ -1028,44 +1080,32 @@
     draw();
   }
 
-  // ================= 範圍選擇 =================
-  function chooseScope(subject) {
-    var units = window.FC_UNITS[subject].filter(function (u) { return BANK.qs.some(function (q) { return q.subject === subject && q.unit === u.unit; }); });
-    var sel = "all";
-    function draw() {
-      show('<div class="lamp-glow"></div><div class="topbar"><button class="btn ghost small" data-k="hub">← 回事務所</button></div><h1>' + SUBJ[subject].icon + " " + esc(SUBJ[subject].area) + '</h1><p class="sub">選擇調查範圍。想加強弱點，可以只選一個單元。</p><div class="unit-list" style="--c:' + SUBJ[subject].color + '">' +
-        '<button class="unit-btn' + (sel === "all" ? " sel" : "") + '" data-u="all"><b>📚 全部單元</b><small>' + units.map(function (u) { return u.label; }).join("、") + "</small></button>" +
-        units.map(function (u) { return '<button class="unit-btn' + (sel === u.unit ? " sel" : "") + '" data-u="' + u.unit + '"><b>' + esc(u.label) + "｜" + esc(u.name) + "</b><small>" + (u.comic ? "📖 漫畫《" + esc(u.comic) + "》" : "　") + "</small></button>"; }).join("") +
-        '</div><div class="row" style="justify-content:flex-end"><button class="btn primary" data-k="go">出發調查 ➜</button></div>');
-      on(app, "[data-k=hub]", hub);
-      on(app, "[data-u]", function () { sel = this.getAttribute("data-u"); draw(); });
-      on(app, "[data-k=go]", function () { startRun(subject, sel === "all" ? units.map(function (u) { return u.unit; }) : [sel]); });
-    }
-    draw();
-  }
-
   // ================= 主畫面（事務所） =================
   function hub() {
     closeSheet(); run = null;
     document.getElementById("rotate-hint").classList.add("hidden");
     if (!save.seat) { pickChar(); return; }
     var c = charOf(save.seat);
-    var html = '<div class="lamp-glow"></div><div class="topbar"><h1 style="margin:0">🗄️ 所長的機密檔案庫</h1><div class="spacer"></div>' +
+    var html = '<div class="topbar"><div class="brand"><span class="kicker">604 CASE FILES · TOP SECRET</span><h1>所長的機密檔案庫</h1></div><div class="spacer"></div>' +
       '<button class="btn ghost small" data-k="sound">' + (save.sound ? "🔊 音效開" : "🔇 音效關") + '</button><a class="btn ghost small" href="help.html">❔ 說明</a></div>' +
       '<div class="folder" data-tab="調查員證"><div class="idcard"><div class="portrait ' + unlocked(FRAMES) + '"><img src="' + img(save.seat) + '" alt=""></div><div><div class="sub" style="color:#6c5a44">604 委託事務所｜' + save.seat + ' 號</div><h2 style="margin:2px 0">' + esc(c.name) + '</h2><span class="title">' + unlocked(TITLES) + '</span><div style="margin-top:8px">🏅 破案勳章 <b>' + save.medals + "</b> 枚　📁 未偵破懸案 <b>" + openCount(null) + '</b> 件</div><button class="btn small ghost" style="color:#333;border-color:#a98;margin-top:8px" data-k="char">換角色</button></div></div></div>';
     if (!save.introSeen) {
       html += '<div class="folder" data-tab="所長的委託">' + bossTalk("事務所的檔案庫裡，還飄著當年迷霧留下的<b>「殘霧」</b>。它們躲進每一份案件卷宗，把重點弄得模模糊糊。<br>潛入四個檔案區，把殘霧驅散吧！") +
         '<div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn small" data-k="intro">收到！</button></div></div>';
     }
-    html += '<div class="areas">' + SUBJ_KEYS.map(function (s) {
+    html += '<div class="areas">' + SUBJ_KEYS.map(function (s, i) {
       var ok = hasQuestions(s), n = openCount(s);
-      return '<button class="area' + (ok ? "" : " off") + '" style="--c:' + SUBJ[s].color + '" data-area="' + s + '"' + (ok ? "" : " disabled") + '><div class="ic">' + SUBJ[s].icon + '</div><div class="nm">' + SUBJ[s].area + '</div><div class="meta">' +
+      return '<button class="area' + (ok ? "" : " off") + '" style="--c:' + SUBJ[s].color + '" data-area="' + s + '"' + (ok ? "" : " disabled") + '><span class="file-no">FILE 0' + (i + 1) + '</span><span class="secret">機密</span><div class="ic">' + SUBJ[s].icon + '</div><div class="nm">' + SUBJ[s].area + '</div><div class="meta">' +
         (ok ? "結案 " + (save.closedRuns[s] || 0) + " 次" : "檔案整理中…") + "</div>" + (n ? '<span class="badge">懸案 ' + n + "</span>" : "") + "</button>";
     }).join("") + "</div>" +
       '<div class="hub-actions"><button class="btn primary" data-k="room"><span>🗂️</span>懸案調查室' + (openCount(null) ? "（" + openCount(null) + "）" : "") + '</button><button class="btn" data-k="duel"><span>⚔️</span>雙人決鬥</button><a class="btn" href="help.html"><span>📖</span>使用說明</a></div>' +
       '<p class="sub center" style="margin-top:18px">考試：11/5（四）英文、自然｜11/6（五）數學、社會。進度只存在這台 iPad。</p>';
     show(html);
-    on(app, "[data-area]", function () { chooseScope(this.getAttribute("data-area")); });
+    on(app, "[data-area]", function () {
+      var s = this.getAttribute("data-area");
+      var units = window.FC_UNITS[s].filter(function (u) { return BANK.qs.some(function (q) { return q.subject === s && q.unit === u.unit; }); }).map(function (u) { return u.unit; });
+      startRun(s, units);
+    });
     on(app, "[data-k=room]", caseRoom);
     on(app, "[data-k=duel]", duelSetup);
     on(app, "[data-k=char]", pickChar);
