@@ -1,0 +1,31 @@
+// 604 班圖鑑角色：座號 → 名字（名字取自圖鑑卡面）
+// 圖片：assets/chars/<座號>.webp（只裁出卡片左側的角色插圖）
+window.FC_CHARS = [
+  { seat: 1, name: "智衡梟" },
+  { seat: 2, name: "幹練狸" },
+  { seat: 3, name: "轉岩甲" },
+  { seat: 4, name: "探芽龜" },
+  { seat: 5, name: "策根鼠" },
+  { seat: 6, name: "策羽雲" },
+  { seat: 7, name: "律算猞" },
+  { seat: 8, name: "熾律獅" },
+  { seat: 9, name: "仁盾獅" },
+  { seat: 10, name: "誠箋獾" },
+  { seat: 11, name: "律雷貂" },
+  { seat: 12, name: "律焰浣" },
+  { seat: 13, name: "芽律獾" },
+  { seat: 14, name: "融岩狼" },
+  { seat: 15, name: "勵陽犬" },
+  { seat: 16, name: "穩綻芯" },
+  { seat: 17, name: "霜語靈" },
+  { seat: 18, name: "謐曜靈" },
+  { seat: 19, name: "澄珠貝靈" },
+  { seat: 20, name: "智曜鷹相" },
+  { seat: 21, name: "映心穩浣" },
+  { seat: 22, name: "墨焰靈狐" },
+  { seat: 23, name: "暖語蜂" },
+  { seat: 24, name: "恆焰狐" },
+  { seat: 25, name: "守蜜仙子" },
+  { seat: 26, name: "彩夢靈貓" },
+  { seat: 27, name: "晶心甜龜" }
+];
